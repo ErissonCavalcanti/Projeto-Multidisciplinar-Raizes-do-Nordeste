@@ -6,7 +6,7 @@ load_dotenv()
 
 class Settings:
     # APP
-    PROJECT_NAME: str = "Raízes do Nordeste API"
+    PROJECT_NAME: str = "Raízes do Nordeste api"
 
     # JWT
     SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecret")

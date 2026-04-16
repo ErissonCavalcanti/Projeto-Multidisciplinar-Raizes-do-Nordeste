@@ -2,10 +2,12 @@ from fastapi import FastAPI
 from src.infrastructure.database import Base, engine
 
 from src.api.routers import auth, pedidos, pagamentos
+from src.api.routers import produtos
 
+app.include_router(produtos.router, prefix="/produtos", tags=["Produtos"])
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="API Raízes do Nordeste")
+app = FastAPI(title="api Raízes do Nordeste")
 
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])
 app.include_router(pedidos.router, prefix="/pedidos", tags=["Pedidos"])
