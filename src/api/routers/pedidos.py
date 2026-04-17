@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from src.infrastructure.models import Estoque
 
 from src.infrastructure.database import get_db
 from src.infrastructure.models import Pedido, Produto, ItemPedido
@@ -9,7 +10,6 @@ from src.api.dependencies.jwt_auth import get_current_user
 router = APIRouter()
 
 
-#  CRIAR PEDIDO COM ITENS
 @router.post("/")
 def criar_pedido(
     pedido: PedidoCreate,
@@ -34,6 +34,13 @@ def criar_pedido(
         if not produto:
             raise HTTPException(status_code=404, detail=f"Produto {item.produto_id} não encontrado")
 
+        estoque = db.query(Estoque).filter(Estoque.produto_id == item.produto_id).first()
+
+        if not estoque or estoque.quantidade < item.quantidade:
+            raise HTTPException(status_code=400, detail="Estoque insuficiente")
+
+        estoque.quantidade -= item.quantidade
+
         subtotal = produto.preco * item.quantidade
         total += subtotal
 
@@ -49,6 +56,8 @@ def criar_pedido(
     novo_pedido.total = total
     db.commit()
 
+    print(f"[LOG] Pedido {novo_pedido.id} criado por {user['email']}")
+
     return {
         "pedidoId": novo_pedido.id,
         "status": novo_pedido.status,
@@ -56,7 +65,6 @@ def criar_pedido(
     }
 
 
-# LISTAR PEDIDOS COM FILTRO
 @router.get("/")
 def listar_pedidos(
     status: str = None,
@@ -75,7 +83,6 @@ def listar_pedidos(
     return query.all()
 
 
-# BUSCAR PEDIDO POR ID
 @router.get("/{pedido_id}")
 def buscar_pedido(
     pedido_id: int,
@@ -90,7 +97,6 @@ def buscar_pedido(
     return pedido
 
 
-# ATUALIZAR STATUS DO PEDIDO
 @router.patch("/{pedido_id}/status")
 def atualizar_status(
     pedido_id: int,
@@ -114,7 +120,6 @@ def atualizar_status(
     if novo_status not in fluxo:
         raise HTTPException(status_code=400, detail="Status inválido")
 
-    # valida fluxo (não pode pular etapas)
     status_atual_index = fluxo.index(pedido.status)
     novo_index = fluxo.index(novo_status)
 
@@ -123,6 +128,8 @@ def atualizar_status(
 
     pedido.status = novo_status
     db.commit()
+
+    print(f"[LOG] Pedido {pedido.id} atualizado para {novo_status}")
 
     return {
         "pedidoId": pedido.id,

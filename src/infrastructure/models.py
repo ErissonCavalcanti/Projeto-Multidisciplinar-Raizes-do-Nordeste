@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, Float
-from database import Base
+from src.infrastructure.database import Base
 
 
 # USUÁRIO
