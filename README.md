@@ -1,4 +1,4 @@
-# 🌵 Raízes do Nordeste API
+# 🌵 API Raízes do Nordeste 
 
 API backend para gestão de pedidos de delivery.
 
