@@ -63,3 +63,20 @@ A API utiliza autenticação via JWT.
 ### 1. Criar ambiente virtual
 ```bash
 python -m venv .venv
+2. Criar ambiente virtual
+bashpython -m venv .venv
+3. Ativar ambiente virtual
+Windows:
+bash.venv\Scripts\activate
+Linux/Mac:
+bashsource .venv/bin/activate
+4. Instalar dependências
+bashpip install -r requirements.txt
+5. Rodar a API
+bashuvicorn src.api.main:app --reload
+
+📄 Documentação (Swagger)
+Com a API rodando, acesse a documentação interativa no navegador:
+http://127.0.0.1:8000/docs
+Ou a documentação alternativa (ReDoc):
+http://127.0.0.1:8000/redoc
