@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from src.infrastructure.database import get_db
 from src.infrastructure.models import Produto
-from pydantic import BaseModel
+from src.api.dependencies.roles import require_role
 
 router = APIRouter()
 
@@ -23,9 +24,13 @@ class ProdutoResponse(BaseModel):
         from_attributes = True
 
 
-# CRIAR PRODUTO
+# CRIAR PRODUTO (SÓ ADMIN)
 @router.post("/", response_model=ProdutoResponse)
-def criar_produto(produto: ProdutoCreate, db: Session = Depends(get_db)):
+def criar_produto(
+    produto: ProdutoCreate,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("ADMIN"))
+):
     novo = Produto(nome=produto.nome, preco=produto.preco)
 
     db.add(novo)
@@ -41,7 +46,7 @@ def listar_produtos(db: Session = Depends(get_db)):
     return db.query(Produto).all()
 
 
-# BUSCAR PRODUTO POR ID
+# BUSCAR PRODUTO
 @router.get("/{produto_id}", response_model=ProdutoResponse)
 def buscar_produto(produto_id: int, db: Session = Depends(get_db)):
     produto = db.query(Produto).filter(Produto.id == produto_id).first()
@@ -52,9 +57,14 @@ def buscar_produto(produto_id: int, db: Session = Depends(get_db)):
     return produto
 
 
-# ATUALIZAR PRODUTO
+# ATUALIZAR PRODUTO (SÓ ADMIN)
 @router.put("/{produto_id}", response_model=ProdutoResponse)
-def atualizar_produto(produto_id: int, dados: ProdutoCreate, db: Session = Depends(get_db)):
+def atualizar_produto(
+    produto_id: int,
+    dados: ProdutoCreate,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("ADMIN"))
+):
     produto = db.query(Produto).filter(Produto.id == produto_id).first()
 
     if not produto:
@@ -69,9 +79,13 @@ def atualizar_produto(produto_id: int, dados: ProdutoCreate, db: Session = Depen
     return produto
 
 
-# DELETAR PRODUTO
+# DELETAR PRODUTO (SÓ ADMIN)
 @router.delete("/{produto_id}")
-def deletar_produto(produto_id: int, db: Session = Depends(get_db)):
+def deletar_produto(
+    produto_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("ADMIN"))
+):
     produto = db.query(Produto).filter(Produto.id == produto_id).first()
 
     if not produto:

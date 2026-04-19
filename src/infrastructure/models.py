@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float
+from sqlalchemy import Column, Integer, String, Float, ForeignKey
 from src.infrastructure.database import Base
 
 
@@ -26,7 +26,7 @@ class Estoque(Base):
     __tablename__ = "estoque"
 
     id = Column(Integer, primary_key=True, index=True)
-    produto_id = Column(Integer)
+    produto_id = Column(Integer, ForeignKey("produtos.id"))
     quantidade = Column(Integer)
 
 
@@ -40,12 +40,12 @@ class Pedido(Base):
     canal = Column(String)
 
 
-# ITENS DO PEDIDO
+# ITEM DO PEDIDO
 class ItemPedido(Base):
     __tablename__ = "itens_pedido"
 
     id = Column(Integer, primary_key=True, index=True)
-    pedido_id = Column(Integer)
-    produto_id = Column(Integer)
+    pedido_id = Column(Integer, ForeignKey("pedidos.id"))
+    produto_id = Column(Integer, ForeignKey("produtos.id"))
     quantidade = Column(Integer)
     preco_unitario = Column(Float)
