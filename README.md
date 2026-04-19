@@ -58,25 +58,78 @@ A API utiliza autenticação via JWT.
 
 ---
 
-## ▶️ Como rodar o projeto
+▶️ Como Executar o Projeto:
 
-### 1. Criar ambiente virtual
-```bash
+
+1️⃣ Clonar o repositório
+
+git clone: https://github.com/ErissonCavalcanti/Projeto-Multidisciplinar-Raizes-do-Nordeste
+
+cd Projeto-Multidisciplinar-Raizes-do-Nordeste
+
+---
+
+2️⃣ Criar ambiente virtual
 python -m venv .venv
-2. Criar ambiente virtual
-bashpython -m venv .venv
-3. Ativar ambiente virtual
-Windows:
-bash.venv\Scripts\activate
-Linux/Mac:
-bashsource .venv/bin/activate
-4. Instalar dependências
-bashpip install -r requirements.txt
-5. Rodar a API
-bashuvicorn src.api.main:app --reload
 
-📄 Documentação (Swagger)
-Com a API rodando, acesse a documentação interativa no navegador:
-http://127.0.0.1:8000/docs
-Ou a documentação alternativa (ReDoc):
-http://127.0.0.1:8000/redoc
+---
+
+3️⃣ Ativar ambiente virtual
+
+Windows:
+
+.venv\Scripts\activate
+
+Linux / Mac:
+
+source .venv/bin/activate
+
+---
+
+4️⃣ Instalar dependências
+pip install -r requirements.txt
+
+---
+
+5️⃣ Configurar variáveis de ambiente
+
+Crie um arquivo .env baseado no .env.example 
+Exemplo:
+
+DATABASE_URL=sqlite:///./database.db
+SECRET_KEY=sua_chave_secreta
+
+--- 
+
+6️⃣ Criar usuário ADMIN (opcional)
+python seed.py
+
+👤 Usuário padrão
+Email: admin@email.com
+
+Senha: 123456
+
+--- 
+
+7️⃣ Executar a API
+
+uvicorn src.api.main:app --reload
+
+---
+
+📄 Acessar documentação
+
+Após iniciar o servidor:
+
+Swagger UI: http://127.0.0.1:8000/docs
+ReDoc: http://127.0.0.1:8000/redoc
+
+---
+
+👨‍💻 Autor
+
+Erisson josé cavalcanti da Silva
+
+RU: 4628196
+
+GitHub: https://github.com/ErissonCavalcanti
