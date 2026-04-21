@@ -10,14 +10,12 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         email: str = payload.get("sub")
-
         if email is None:
-            raise HTTPException(status_code=401, detail="Token inválido")
-
+            raise HTTPException(status_code=401, detail={"error": "TOKEN_INVALIDO", "message": "Token inválido ou expirado.", "details": [], "path": ""})
         return {
             "email": email,
+            "id": payload.get("id"),
             "perfil": payload.get("perfil")
         }
-
     except JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido")
+        raise HTTPException(status_code=401, detail={"error": "TOKEN_INVALIDO", "message": "Token inválido ou expirado.", "details": [], "path": ""})

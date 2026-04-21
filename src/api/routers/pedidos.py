@@ -1,74 +1,140 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from src.infrastructure.models import Estoque
+from datetime import datetime
 
 from src.infrastructure.database import get_db
-from src.infrastructure.models import Pedido, Produto, ItemPedido
-from src.api.schemas.pedido_schema import PedidoCreate
+from src.infrastructure.models import Pedido, Produto, ItemPedido, Estoque, Unidade, LogAuditoria
+from src.api.schemas.pedido_schema import PedidoCreate, AtualizarStatusRequest, StatusPedido
+from src.api.schemas.error_schema import make_error
 from src.api.dependencies.jwt_auth import get_current_user
 
 router = APIRouter()
 
+FLUXO_STATUS = [
+    "AGUARDANDO_PAGAMENTO",
+    "RECEBIDO",
+    "EM_PREPARO",
+    "PRONTO",
+    "ENTREGUE"
+]
 
-@router.post("/")
+
+def registrar_log(db: Session, usuario_id, entidade: str, entidade_id: int, acao: str, descricao: str):
+    """Regista uma ação sensível na tabela de auditoria."""
+    log = LogAuditoria(
+        usuario_id=usuario_id,
+        entidade=entidade,
+        entidade_id=entidade_id,
+        acao=acao,
+        descricao=descricao,
+        criado_em=datetime.utcnow()
+    )
+    db.add(log)
+    db.commit()
+
+
+#  POST /pedidos
+@router.post("/", status_code=201)
 def criar_pedido(
     pedido: PedidoCreate,
     db: Session = Depends(get_db),
     user=Depends(get_current_user)
 ):
-    novo_pedido = Pedido(
-        status="AGUARDANDO_PAGAMENTO",
-        canal=pedido.canalPedido,
-        total=0
-    )
+    # Valida unidade
+    unidade = db.query(Unidade).filter(Unidade.id == pedido.unidade_id, Unidade.ativo == True).first()
+    if not unidade:
+        raise HTTPException(
+            status_code=404,
+            detail=make_error("UNIDADE_NAO_ENCONTRADA", "Unidade não encontrada ou inativa.", "/pedidos")
+        )
 
+    # Valida itens e estoque
+    erros_estoque = []
+    for item in pedido.itens:
+        produto = db.query(Produto).filter(Produto.id == item.produto_id, Produto.ativo == True).first()
+        if not produto:
+            raise HTTPException(
+                status_code=404,
+                detail=make_error(
+                    "PRODUTO_NAO_ENCONTRADO",
+                    f"Produto {item.produto_id} não encontrado.",
+                    "/pedidos",
+                    [{"field": f"itens[].produto_id", "issue": f"ID {item.produto_id} inexistente"}]
+                )
+            )
+        estoque = db.query(Estoque).filter(
+            Estoque.produto_id == item.produto_id,
+            Estoque.unidade_id == pedido.unidade_id
+        ).first()
+        if not estoque or estoque.quantidade < item.quantidade:
+            disponivel = estoque.quantidade if estoque else 0
+            erros_estoque.append({"field": f"itens[{item.produto_id}].quantidade", "issue": f"Disponível: {disponivel}"})
+
+    if erros_estoque:
+        raise HTTPException(
+            status_code=409,
+            detail=make_error("ESTOQUE_INSUFICIENTE", "Quantidade insuficiente para um ou mais itens.", "/pedidos", erros_estoque)
+        )
+
+    # Cria pedido
+    novo_pedido = Pedido(
+        unidade_id=pedido.unidade_id,
+        usuario_id=user.get("id"),
+        canal_pedido=pedido.canalPedido.value,
+        status="AGUARDANDO_PAGAMENTO",
+        total=0.0,
+        criado_em=datetime.utcnow()
+    )
     db.add(novo_pedido)
     db.commit()
     db.refresh(novo_pedido)
 
-    total = 0
-
+    # Cria itens e desconta estoque
+    total = 0.0
+    itens_response = []
     for item in pedido.itens:
         produto = db.query(Produto).filter(Produto.id == item.produto_id).first()
-
-        if not produto:
-            raise HTTPException(status_code=404, detail=f"Produto {item.produto_id} não encontrado")
-
-        estoque = db.query(Estoque).filter(Estoque.produto_id == item.produto_id).first()
-
-        if not estoque or estoque.quantidade < item.quantidade:
-            raise HTTPException(status_code=400, detail="Estoque insuficiente")
-
+        estoque = db.query(Estoque).filter(
+            Estoque.produto_id == item.produto_id,
+            Estoque.unidade_id == pedido.unidade_id
+        ).first()
         estoque.quantidade -= item.quantidade
-
         subtotal = produto.preco * item.quantidade
         total += subtotal
-
         item_db = ItemPedido(
             pedido_id=novo_pedido.id,
             produto_id=produto.id,
             quantidade=item.quantidade,
             preco_unitario=produto.preco
         )
-
         db.add(item_db)
+        itens_response.append({"produtoId": produto.id, "quantidade": item.quantidade, "precoUnitario": produto.preco})
 
-    novo_pedido.total = total
+    novo_pedido.total = round(total, 2)
     db.commit()
 
-    print(f"[LOG] Pedido {novo_pedido.id} criado por {user['email']}")
+    # Log de auditoria
+    registrar_log(db, user.get("id"), "pedido", novo_pedido.id, "CRIACAO",
+                  f"Pedido criado via {pedido.canalPedido.value} — total R$ {novo_pedido.total}")
 
     return {
         "pedidoId": novo_pedido.id,
         "status": novo_pedido.status,
-        "total": total
+        "canalPedido": novo_pedido.canal_pedido,
+        "total": novo_pedido.total,
+        "itens": itens_response,
+        "createdAt": novo_pedido.criado_em.isoformat() + "Z"
     }
 
 
+# GET /pedidos
 @router.get("/")
 def listar_pedidos(
-    status: str = None,
-    canal: str = None,
+    status: str = Query(None),
+    canalPedido: str = Query(None),       # query param conforme o roteiro
+    unidade_id: int = Query(None),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     user=Depends(get_current_user)
 ):
@@ -76,13 +142,36 @@ def listar_pedidos(
 
     if status:
         query = query.filter(Pedido.status == status)
+    if canalPedido:
+        query = query.filter(Pedido.canal_pedido == canalPedido)
+    if unidade_id:
+        query = query.filter(Pedido.unidade_id == unidade_id)
 
-    if canal:
-        query = query.filter(Pedido.canal == canal)
+    total_registros = query.count()
+    pedidos = query.offset((page - 1) * limit).limit(limit).all()
 
-    return query.all()
+    return {
+        "data": [
+            {
+                "pedidoId": p.id,
+                "status": p.status,
+                "canalPedido": p.canal_pedido,
+                "total": p.total,
+                "unidade_id": p.unidade_id,
+                "criadoEm": p.criado_em.isoformat() + "Z" if p.criado_em else None
+            }
+            for p in pedidos
+        ],
+        "pagination": {
+            "page": page,
+            "limit": limit,
+            "total": total_registros,
+            "pages": (total_registros + limit - 1) // limit
+        }
+    }
 
 
+#  GET /pedidos/{id}
 @router.get("/{pedido_id}")
 def buscar_pedido(
     pedido_id: int,
@@ -90,48 +179,75 @@ def buscar_pedido(
     user=Depends(get_current_user)
 ):
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
-
     if not pedido:
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+        raise HTTPException(
+            status_code=404,
+            detail=make_error("PEDIDO_NAO_ENCONTRADO", "Pedido não encontrado.", f"/pedidos/{pedido_id}")
+        )
 
-    return pedido
+    itens = db.query(ItemPedido).filter(ItemPedido.pedido_id == pedido_id).all()
+
+    return {
+        "pedidoId": pedido.id,
+        "status": pedido.status,
+        "canalPedido": pedido.canal_pedido,
+        "total": pedido.total,
+        "unidade_id": pedido.unidade_id,
+        "itens": [{"produtoId": i.produto_id, "quantidade": i.quantidade, "precoUnitario": i.preco_unitario} for i in itens],
+        "criadoEm": pedido.criado_em.isoformat() + "Z" if pedido.criado_em else None
+    }
 
 
+#  PATCH /pedidos/{id}/status
 @router.patch("/{pedido_id}/status")
 def atualizar_status(
     pedido_id: int,
-    novo_status: str,
+    body: AtualizarStatusRequest,
     db: Session = Depends(get_db),
     user=Depends(get_current_user)
 ):
     pedido = db.query(Pedido).filter(Pedido.id == pedido_id).first()
-
     if not pedido:
-        raise HTTPException(status_code=404, detail="Pedido não encontrado")
+        raise HTTPException(
+            status_code=404,
+            detail=make_error("PEDIDO_NAO_ENCONTRADO", "Pedido não encontrado.", f"/pedidos/{pedido_id}/status")
+        )
 
-    fluxo = [
-        "AGUARDANDO_PAGAMENTO",
-        "RECEBIDO",
-        "EM_PREPARO",
-        "PRONTO",
-        "ENTREGUE"
-    ]
+    novo_status = body.novoStatus.value
+    status_anterior = pedido.status
 
-    if novo_status not in fluxo:
-        raise HTTPException(status_code=400, detail="Status inválido")
-
-    status_atual_index = fluxo.index(pedido.status)
-    novo_index = fluxo.index(novo_status)
-
-    if novo_index < status_atual_index:
-        raise HTTPException(status_code=400, detail="Não pode voltar status")
+    # Fluxo de CANCELADO pode ser feito a partir de qualquer estado (exceto ENTREGUE)
+    if novo_status == "CANCELADO":
+        if pedido.status == "ENTREGUE":
+            raise HTTPException(
+                status_code=409,
+                detail=make_error("STATUS_INVALIDO", "Pedido já entregue não pode ser cancelado.", f"/pedidos/{pedido_id}/status")
+            )
+    else:
+        if novo_status not in FLUXO_STATUS:
+            raise HTTPException(
+                status_code=400,
+                detail=make_error("STATUS_INVALIDO", "Status inválido.", f"/pedidos/{pedido_id}/status")
+            )
+        idx_atual = FLUXO_STATUS.index(pedido.status) if pedido.status in FLUXO_STATUS else -1
+        idx_novo = FLUXO_STATUS.index(novo_status)
+        if idx_novo <= idx_atual:
+            raise HTTPException(
+                status_code=409,
+                detail=make_error("STATUS_INVALIDO", f"Não é possível retroceder o status de '{pedido.status}' para '{novo_status}'.", f"/pedidos/{pedido_id}/status")
+            )
 
     pedido.status = novo_status
+    pedido.atualizado_em = datetime.utcnow()
     db.commit()
 
-    print(f"[LOG] Pedido {pedido.id} atualizado para {novo_status}")
+    # Log de auditoria
+    registrar_log(db, user.get("id"), "pedido", pedido.id, "STATUS_ATUALIZADO",
+                  f"Status alterado de {status_anterior} para {novo_status}. Motivo: {body.motivo or 'não informado'}")
 
     return {
         "pedidoId": pedido.id,
-        "novoStatus": pedido.status
+        "statusAnterior": status_anterior,
+        "novoStatus": pedido.status,
+        "atualizadoEm": pedido.atualizado_em.isoformat() + "Z"
     }
