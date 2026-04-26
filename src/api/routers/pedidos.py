@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from src.infrastructure.database import get_db
 from src.infrastructure.models import (
@@ -86,22 +86,6 @@ def criar_pedido(
                               [{"field": "itens", "issue": "Lista não pode ser vazia"}])
         )
 
-    # RN04 — idempotência: pedido duplicado nos últimos 60 segundos
-    janela = datetime.utcnow() - timedelta(seconds=60)
-    pedido_recente = db.query(Pedido).filter(
-        Pedido.usuario_id == user.get("id"),
-        Pedido.unidade_id == pedido.unidade_id,
-        Pedido.criado_em >= janela
-    ).first()
-    if pedido_recente:
-        raise HTTPException(
-            status_code=409,
-            detail=make_error("PEDIDO_DUPLICADO",
-                              "Pedido idêntico já realizado nos últimos 60 segundos.",
-                              "/pedidos",
-                              [{"field": "pedidoId", "issue": f"Pedido existente: #{pedido_recente.id}"}])
-        )
-
     # Valida unidade
     unidade = db.query(Unidade).filter(Unidade.id == pedido.unidade_id, Unidade.ativo == True).first()
     if not unidade:
@@ -140,7 +124,7 @@ def criar_pedido(
         )
 
     # Calcula total
-    total = round(sum(p.preco_base * i.quantidade for i, p, _ in itens_validados), 2)
+    total = round(sum(p.preco * i.quantidade for i, p, _ in itens_validados), 2)
 
     # Cria pedido — estoque ainda NÃO descontado (será descontado após pagamento aprovado)
     novo_pedido = Pedido(
@@ -162,13 +146,13 @@ def criar_pedido(
             pedido_id=novo_pedido.id,
             produto_id=produto.id,
             quantidade=item.quantidade,
-            preco_unitario=produto.preco_base
+            preco_unitario=produto.preco
         )
         db.add(item_db)
         itens_response.append({
             "produtoId": produto.id,
             "quantidade": item.quantidade,
-            "precoUnitario": produto.preco_base
+            "precoUnitario": produto.preco
         })
 
     db.commit()

@@ -37,3 +37,6 @@ AdminGerAtendente     = requer_perfil(["ADMIN", "GERENTE", "ATENDENTE"])
 ClienteOuAtendente    = requer_perfil(["CLIENTE", "ATENDENTE"])
 CozinhaOuSuperior     = requer_perfil(["COZINHA", "GERENTE", "ADMIN"])
 Todos                 = requer_perfil(["ADMIN", "GERENTE", "COZINHA", "ATENDENTE", "CLIENTE"])
+
+# Alias para compatibilidade com código existente
+require_role = requer_perfil
