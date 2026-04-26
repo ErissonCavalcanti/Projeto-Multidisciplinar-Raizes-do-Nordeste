@@ -59,13 +59,10 @@ class Produto(Base):
     id           = Column(Integer, primary_key=True, index=True)
     nome         = Column(String, nullable=False)
     descricao    = Column(Text, nullable=True)
-    preco_base   = Column(Float, nullable=False)
+    preco        = Column(Float, nullable=False)
+    categoria    = Column(String, default="Geral")
     categoria_id = Column(Integer, ForeignKey("categorias.id"), nullable=True)
     ativo        = Column(Boolean, default=True)
-
-    @property
-    def preco(self):
-        return self.preco_base
 
 
 # CARDAPIO POR UNIDADE
@@ -75,7 +72,7 @@ class CardapioUnidade(Base):
     id          = Column(Integer, primary_key=True, index=True)
     unidade_id  = Column(Integer, ForeignKey("unidades.id"), nullable=False)
     produto_id  = Column(Integer, ForeignKey("produtos.id"), nullable=False)
-    preco_local = Column(Float, nullable=True)   # sobrescreve preco_base se informado
+    preco_local = Column(Float, nullable=True)   # sobrescreve preco do produto se informado
     disponivel  = Column(Boolean, default=True)
 
 
