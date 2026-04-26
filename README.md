@@ -86,9 +86,10 @@ uvicorn src.api.main:app --reload
 
 Após iniciar o servidor:
 
-- **Swagger UI:** http://127.0.0.1:8000/docs
+- **Swagger UI:** http://127.0.0.1:8000/api-docs
 - **ReDoc:** http://127.0.0.1:8000/redoc
-
+- Postman: https://documenter.getpostman.com/view/45608718/2sBXqGrMrq
+  
 ---
 
 ## 🧪 Testes com Postman
@@ -150,7 +151,3 @@ raizes-do-nordeste/
 
 ---
 
-## 👤 Autor
-
-**Erisson José Cavalcanti da Silva** — RU: 4628196  
-GitHub: https://github.com/ErissonCavalcanti
