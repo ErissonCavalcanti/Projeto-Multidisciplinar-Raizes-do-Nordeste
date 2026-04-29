@@ -32,7 +32,7 @@ git clone https://github.com/ErissonCavalcanti/Projeto-Multidisciplinar-Raizes-d
 cd Projeto-Multidisciplinar-Raizes-do-Nordeste
 ```
 
-### 2. Criar e activar ambiente virtual
+### 2. Criar e ativar ambiente virtual
 ```bash
 python -m venv .venv
 
